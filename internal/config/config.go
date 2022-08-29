@@ -5,6 +5,8 @@ package config
 type Config struct {
 	// Verbose toggles the verbosity
 	Debug bool
+	// Testing mode that does not commit changes
+	Testing bool
 	// LogLevel is the level with with to log for this config
 	LogLevel string `mapstructure:"log_level"`
 	// LogFormat is the format that is used for logging
@@ -14,9 +16,9 @@ type Config struct {
 	// GoogleAdmin ...
 	GoogleAdmin string `mapstructure:"google_admin"`
 	// UserMatch ...
-	UserMatch string `mapstructure:"user_match"`
+	UserMatch []string `mapstructure:"user_match"`
 	// GroupFilter ...
-	GroupMatch string `mapstructure:"group_match"`
+	GroupMatch []string `mapstructure:"group_match"`
 	// SCIMEndpoint ....
 	SCIMEndpoint string `mapstructure:"scim_endpoint"`
 	// SCIMAccessToken ...
@@ -40,6 +42,8 @@ const (
 	DefaultLogFormat = "text"
 	// DefaultDebug is the default debug status.
 	DefaultDebug = false
+	// DefaultTesting is the default testing status.
+	DefaultTesting = false
 	// DefaultGoogleCredentials is the default credentials path
 	DefaultGoogleCredentials = "credentials.json"
 	// DefaultSyncMethod is the default sync method to use.

@@ -31,9 +31,9 @@ import (
 
 // SyncGSuite is the interface for synchronizing users/groups
 type SyncGSuite interface {
-	SyncUsers(string) error
-	SyncGroups(string) error
-	SyncGroupsUsers(string) error
+	SyncUsers([]string, bool) error
+	SyncGroups([]string, bool) error
+	SyncGroupsUsers([]string, bool) error
 }
 
 // SyncGSuite is an object type that will synchronize real users and groups
@@ -66,7 +66,11 @@ func New(cfg *config.Config, a aws.Client, g google.Client) SyncGSuite {
 //  manager='janesmith@example.com'
 //  orgName=Engineering orgTitle:Manager
 //  EmploymentData.projects:'GeneGnomes'
-func (s *syncGSuite) SyncUsers(query string) error {
+func (s *syncGSuite) SyncUsers(queries []string, testing bool) error {
+	if testing {
+		log.Debug("+++++++++ SyncUsers: Testing Mode +++++++++")
+	}
+
 	log.Debug("get deleted users")
 	deletedUsers, err := s.google.GetDeletedUsers()
 	if err != nil {
@@ -94,18 +98,26 @@ func (s *syncGSuite) SyncUsers(query string) error {
 			continue
 		}
 
-		if err := s.aws.DeleteUser(uu); err != nil {
-			log.WithFields(log.Fields{
-				"email": u.PrimaryEmail,
-			}).Warn("Error deleting user")
-			return err
+		if !testing {
+			if err := s.aws.DeleteUser(uu); err != nil {
+				log.WithFields(log.Fields{
+					"email": u.PrimaryEmail,
+				}).Warn("Error deleting user")
+				return err
+			}
 		}
 	}
 
-	log.Debug("get active google users")
-	googleUsers, err := s.google.GetUsers(query)
-	if err != nil {
-		return err
+	var googleUsers []*admin.User
+
+	for _, query := range queries {
+		log.WithField("query", query).Debug("get active google users")
+		googleUsersForQuery, err := s.google.GetUsers(query)
+		if err != nil {
+			return err
+		}
+
+		googleUsers = append(googleUsers, googleUsersForQuery...)
 	}
 
 	for _, u := range googleUsers {
@@ -124,31 +136,36 @@ func (s *syncGSuite) SyncUsers(query string) error {
 			// Update the user when suspended state is changed
 			if uu.Active == u.Suspended {
 				log.Debug("Mismatch active/suspended, updating user")
-				// create new user object and update the user
-				_, err := s.aws.UpdateUser(aws.UpdateUser(
-					uu.ID,
-					u.Name.GivenName,
-					u.Name.FamilyName,
-					u.PrimaryEmail,
-					!u.Suspended))
-				if err != nil {
-					return err
+
+				if !testing {
+					// create new user object and update the user
+					_, err := s.aws.UpdateUser(aws.UpdateUser(
+						uu.ID,
+						u.Name.GivenName,
+						u.Name.FamilyName,
+						u.PrimaryEmail,
+						!u.Suspended))
+					if err != nil {
+						return err
+					}
 				}
 			}
 			continue
 		}
 
 		ll.Info("creating user")
-		uu, err := s.aws.CreateUser(aws.NewUser(
-			u.Name.GivenName,
-			u.Name.FamilyName,
-			u.PrimaryEmail,
-			!u.Suspended))
-		if err != nil {
-			return err
-		}
+		if !testing {
+			uu, err := s.aws.CreateUser(aws.NewUser(
+				u.Name.GivenName,
+				u.Name.FamilyName,
+				u.PrimaryEmail,
+				!u.Suspended))
+			if err != nil {
+				return err
+			}
 
-		s.users[uu.Username] = uu
+			s.users[uu.Username] = uu
+		}
 	}
 
 	return nil
@@ -165,12 +182,20 @@ func (s *syncGSuite) SyncUsers(query string) error {
 //  name:contact* email:contact*
 //  name:Admin* email:aws-*
 //  email:aws-*
-func (s *syncGSuite) SyncGroups(query string) error {
+func (s *syncGSuite) SyncGroups(queries []string, testing bool) error {
+	if testing {
+		log.Debug("+++++++++ SyncGroups: Testing Mode +++++++++")
+	}
 
-	log.WithField("query", query).Debug("get google groups")
-	googleGroups, err := s.google.GetGroups(query)
-	if err != nil {
-		return err
+	var googleGroups []*admin.Group
+	for _, query := range queries {
+		log.WithField("query", query).Debug("get google groups")
+		googleGroupsForQuery, err := s.google.GetGroups(query)
+		if err != nil {
+			return err
+		}
+
+		googleGroups = append(googleGroups, googleGroupsForQuery...)
 	}
 
 	correlatedGroups := make(map[string]*aws.Group)
@@ -198,12 +223,15 @@ func (s *syncGSuite) SyncGroups(query string) error {
 			group = gg
 		} else {
 			log.Info("Creating group in AWS")
-			newGroup, err := s.aws.CreateGroup(aws.NewGroup(g.Email))
-			if err != nil {
-				return err
+			if !testing {
+				newGroup, err := s.aws.CreateGroup(aws.NewGroup(g.Email))
+				if err != nil {
+					return err
+				}
+
+				correlatedGroups[newGroup.DisplayName] = newGroup
+				group = newGroup
 			}
-			correlatedGroups[newGroup.DisplayName] = newGroup
-			group = newGroup
 		}
 
 		groupMembers, err := s.google.GetGroupMembers(g)
@@ -223,25 +251,34 @@ func (s *syncGSuite) SyncGroups(query string) error {
 
 		for _, u := range s.users {
 			log.WithField("user", u.Username).Debug("Checking user is in group already")
-			b, err := s.aws.IsUserInGroup(u, group)
-			if err != nil {
-				return err
+			var b bool
+			if !testing {
+				b, err = s.aws.IsUserInGroup(u, group)
+				if err != nil {
+					return err
+				}
 			}
 
 			if _, ok := memberList[u.Username]; ok {
 				if !b {
 					log.WithField("user", u.Username).Info("Adding user to group")
-					err := s.aws.AddUserToGroup(u, group)
-					if err != nil {
-						return err
+					if !testing {
+						err := s.aws.AddUserToGroup(u, group)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			} else {
 				if b {
 					log.WithField("user", u.Username).Warn("Removing user from group")
-					err := s.aws.RemoveUserFromGroup(u, group)
-					if err != nil {
-						return err
+					// Note that with testing enabled, b should never be truthy.
+					// However, we include a !testing check here in case that changes.
+					if !testing {
+						err := s.aws.RemoveUserFromGroup(u, group)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -270,14 +307,22 @@ func (s *syncGSuite) SyncGroups(query string) error {
 //  4) add groups in aws and add its members, these were added in google
 //  5) validate equals aws an google groups members
 //  6) delete groups in aws, these were deleted in google
-func (s *syncGSuite) SyncGroupsUsers(query string) error {
-
-	log.WithField("query", query).Info("get google groups")
-	googleGroups, err := s.google.GetGroups(query)
-	if err != nil {
-		return err
+func (s *syncGSuite) SyncGroupsUsers(queries []string, testing bool) error {
+	if testing {
+		log.Debug("+++++++++ SyncGroupsUsers: Testing Mode +++++++++")
 	}
-
+	
+	var googleGroups []*admin.Group
+	for _, query := range queries {
+		log.WithField("query", query).Info("get google groups")
+		googleGroupsForQuery, err := s.google.GetGroups(query)
+		if err != nil {
+			return err
+		}
+		
+		googleGroups = append(googleGroups, googleGroupsForQuery...)
+	}
+	
 	// Filter groups
 	filteredGoogleGroups := []*admin.Group{}
 	for _, g := range googleGroups {
@@ -335,9 +380,11 @@ func (s *syncGSuite) SyncGroupsUsers(query string) error {
 		}
 
 		log.Warn("deleting user")
-		if err := s.aws.DeleteUser(awsUserFull); err != nil {
-			log.Error("error deleting user")
-			return err
+		if !testing {
+			if err := s.aws.DeleteUser(awsUserFull); err != nil {
+				log.Error("error deleting user")
+				return err
+			}
 		}
 	}
 
@@ -354,10 +401,12 @@ func (s *syncGSuite) SyncGroupsUsers(query string) error {
 		}
 
 		log.Warn("updating user")
-		_, err = s.aws.UpdateUser(awsUserFull)
-		if err != nil {
-			log.Error("error updating user")
-			return err
+		if !testing {
+			_, err = s.aws.UpdateUser(awsUserFull)
+			if err != nil {
+				log.Error("error updating user")
+				return err
+			}
 		}
 	}
 
@@ -383,13 +432,17 @@ func (s *syncGSuite) SyncGroupsUsers(query string) error {
 	log.Debug("creating aws groups added in google")
 	for _, awsGroup := range addAWSGroups {
 
+		var awsGroupFull *aws.Group
+
 		log := log.WithFields(log.Fields{"group": awsGroup.DisplayName})
 
 		log.Info("creating group")
-		awsGroupFull, err := s.aws.CreateGroup(awsGroup)
-		if err != nil {
-			log.Error("creating group")
-			return err
+		if !testing {
+			awsGroupFull, err = s.aws.CreateGroup(awsGroup)
+			if err != nil {
+				log.Error("creating group")
+				return err
+			}
 		}
 
 		// add members of the new group
@@ -403,9 +456,11 @@ func (s *syncGSuite) SyncGroupsUsers(query string) error {
 			}
 
 			log.WithField("user", awsUserFull.Username).Info("adding user to group")
-			err = s.aws.AddUserToGroup(awsUserFull, awsGroupFull)
-			if err != nil {
-				return err
+			if !testing {
+				err = s.aws.AddUserToGroup(awsUserFull, awsGroupFull)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -436,18 +491,22 @@ func (s *syncGSuite) SyncGroupsUsers(query string) error {
 
 			if !b {
 				log.WithField("user", awsUserFull.Username).Info("adding user to group")
-				err := s.aws.AddUserToGroup(awsUserFull, awsGroup)
-				if err != nil {
-					return err
+				if !testing {
+					err := s.aws.AddUserToGroup(awsUserFull, awsGroup)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
 
 		for _, awsUser := range deleteUsersFromGroup[awsGroup.DisplayName] {
 			log.WithField("user", awsUser.Username).Warn("removing user from group")
-			err := s.aws.RemoveUserFromGroup(awsUser, awsGroup)
-			if err != nil {
-				return err
+			if !testing {
+				err := s.aws.RemoveUserFromGroup(awsUser, awsGroup)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -465,10 +524,12 @@ func (s *syncGSuite) SyncGroupsUsers(query string) error {
 		}
 
 		log.Warn("deleting group")
-		err = s.aws.DeleteGroup(awsGroupFull)
-		if err != nil {
-			log.Error("deleting group")
-			return err
+		if !testing {
+			err = s.aws.DeleteGroup(awsGroupFull)
+			if err != nil {
+				log.Error("deleting group")
+				return err
+			}
 		}
 	}
 
@@ -526,7 +587,6 @@ func (s *syncGSuite) getGoogleGroupsAndUsers(googleGroups []*admin.Group) ([]*ad
 			} else {
 				log.WithField("member", m.Email).Warn("ignoring group member because it is not a user, looks like a group inside the group")
 			}
-
 		}
 		gGroupsUsers[g.Name] = membersUsers
 	}
@@ -716,17 +776,17 @@ func DoSync(ctx context.Context, cfg *config.Config) error {
 
 	log.WithField("sync_method", cfg.SyncMethod).Info("syncing")
 	if cfg.SyncMethod == config.DefaultSyncMethod {
-		err = c.SyncGroupsUsers(cfg.GroupMatch)
+		err = c.SyncGroupsUsers(cfg.GroupMatch, cfg.Testing)
 		if err != nil {
 			return err
 		}
 	} else {
-		err = c.SyncUsers(cfg.UserMatch)
+		err = c.SyncUsers(cfg.UserMatch, cfg.Testing)
 		if err != nil {
 			return err
 		}
 
-		err = c.SyncGroups(cfg.GroupMatch)
+		err = c.SyncGroups(cfg.GroupMatch, cfg.Testing)
 		if err != nil {
 			return err
 		}
