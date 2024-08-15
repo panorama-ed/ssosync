@@ -29,8 +29,6 @@ type Config struct {
 	IgnoreUsers []string `mapstructure:"ignore_users"`
 	// Ignore groups ...
 	IgnoreGroups []string `mapstructure:"ignore_groups"`
-	// Include users ...
-        IncludeUsers []string `mapstructure:"include_users"`
 	// Include groups ...
 	IncludeGroups []string `mapstructure:"include_groups"`
 	// SyncMethod allow to defined the sync method used to get the user and groups from Google Workspace
@@ -52,10 +50,6 @@ const (
 	DefaultGoogleCredentials = "credentials.json"
 	// DefaultSyncMethod is the default sync method to use.
 	DefaultSyncMethod = "groups"
-	// DefaultUserMatch
-	DefaultUserMatch = ""
-	// DefaultGroupMatch
-	DefaultGroupMatch = ""
 )
 
 // New returns a new Config
@@ -66,7 +60,5 @@ func New() *Config {
 		LogFormat:         DefaultLogFormat,
 		SyncMethod:        DefaultSyncMethod,
 		GoogleCredentials: DefaultGoogleCredentials,
-		UserMatch:	   DefaultUserMatch,
-		GroupMatch:	   DefaultGroupMatch,
 	}
 }

@@ -273,9 +273,9 @@ Resources:
               InputArtifacts:
                 - Name: Tests
               RunOrder: 2
-        - Name: ExecutionTests
+        - Name: SmokeTests
           Actions:
-            - Name: CLI
+            - Name: Lambda
               ActionTypeId:
                 Category: Test
                 Owner: AWS
@@ -283,12 +283,13 @@ Resources:
                 Provider: CodeBuild
               RunOrder: 1
               Configuration:
-                ProjectName: !Ref CodeBuildSmokeCLI
+                ProjectName: !Ref CodeBuildSmokeLambda
+                PrimarySource: Source
               OutputArtifacts:
-                - Name: SmokeCLI
+                - Name: SmokeLambda
               InputArtifacts:
                 - Name: Tests
-            - Name: Lambda
+            - Name: CLI
               ActionTypeId:
                 Category: Test
                 Owner: AWS
@@ -296,10 +297,9 @@ Resources:
                 Provider: CodeBuild
               RunOrder: 2
               Configuration:
-                ProjectName: !Ref CodeBuildSmokeLambda
-                PrimarySource: Source
+                ProjectName: !Ref CodeBuildSmokeCLI
               OutputArtifacts:
-                - Name: SmokeLambda
+                - Name: SmokeCLI
               InputArtifacts:
                 - Name: Tests
             - Name: CodePipeline
@@ -313,21 +313,6 @@ Resources:
                 FunctionName: SSOSyncFunction
               OutputArtifacts:
                 - Name: SmokeCodePipeline
-              InputArtifacts:
-                - Name: Tests
-        - Name: FunctionalTests
-          Actions:
-            - Name: Groups
-              ActionTypeId:
-                Category: Test
-                Owner: AWS
-                Version: 1
-                Provider: CodeBuild
-              RunOrder: 1
-              Configuration:
-                ProjectName: !Ref CodeBuildFunctionalGroups
-              OutputArtifacts:
-                - Name: Groups
               InputArtifacts:
                 - Name: Tests
         - Name: CleanUp
@@ -559,34 +544,6 @@ Resources:
       LogGroupName: !Ref CodePipelineLogGroup
       LogStreamName: SSOSync-Smoke-Lambda
 
-  CodeBuildFunctionalGroups:
-    Type: AWS::CodeBuild::Project
-    Properties:
-      Name: SSOSync-Functional-Groups
-      Description: "Test for correctional behaviour with different group scenarions"
-      ServiceRole: !Ref CodeBuildTestRole
-      Source:   
-        Type: CODEPIPELINE
-        BuildSpec: "tests/functional/groups/buildspec.yml"
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:5.0
-        Type: LINUX_CONTAINER
-      Artifacts:
-        Name: SSOSync
-        Type: CODEPIPELINE
-      LogsConfig:
-        CloudWatchLogs: 
-          GroupName: !Ref CodePipelineLogGroup
-          StreamName: !Ref CodeBuildFunctionalGroupLogs
-          Status: ENABLED
-                
-  CodeBuildFunctionalGroupLogs:
-    Type: AWS::Logs::LogStream
-    Properties: 
-      LogGroupName: !Ref CodePipelineLogGroup
-      LogStreamName: SSOSync-Functional-GroupFiltering
-
 
   CodePipelineRole:
     Type: AWS::IAM::Role
@@ -619,7 +576,6 @@ Resources:
               - !Sub ${CodeBuildStaging.Arn}
               - !Sub ${CodeBuildSmokeCLI.Arn}
               - !Sub ${CodeBuildSmokeLambda.Arn}
-              - !Sub ${CodeBuildFunctionalGroups.Arn}
               Effect: Allow
             - Action:
               - 's3:GetBucketPolicy'
@@ -850,7 +806,6 @@ Resources:
                 - "identitystore:IsMemberInGroups"
                 - "identitystore:GetGroupMembershipId"
                 - "identitystore:DeleteGroupMembership"
-                - "identitystore:DeleteGroup"
               Effect: Allow
               Resource: '*'
             - Action:

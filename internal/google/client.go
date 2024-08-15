@@ -195,4 +195,3 @@ func (c *client) GetGroups(query string) ([]*admin.Group, error) {
 	}
 	return g, err
 }
-
