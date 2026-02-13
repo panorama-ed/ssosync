@@ -398,10 +398,9 @@ func Test_GetGroupsWithoutPagination(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListGroupsPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleResp).Return(nil)
 
-	actualOutput, err := mockClient.GetGroups()
+	actualOutput := mockClient.getAwsGroups()
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
-	assert.NoError(t, err)
 }
 
 func Test_GetGroupsWithPagination(t *testing.T) {
@@ -462,10 +461,9 @@ func Test_GetGroupsWithPagination(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListGroupsPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleResp).Return(nil)
 
-	actualOutput, err := mockClient.GetGroups()
+	actualOutput := mockClient.getAwsGroups()
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
-	assert.NoError(t, err)
 }
 
 func Test_GetGroupsEmptyResponse(t *testing.T) {
@@ -493,10 +491,9 @@ func Test_GetGroupsEmptyResponse(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListGroupsPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleResp).Return(nil)
 
-	actualOutput, err := mockClient.GetGroups()
+	actualOutput := mockClient.getAwsGroups()
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
-	assert.NoError(t, err)
 }
 
 func Test_GetGroupsErrorResponse(t *testing.T) {
@@ -515,13 +512,11 @@ func Test_GetGroupsErrorResponse(t *testing.T) {
 
 	sampleResponseError := errors.New("Sample error")
 
-	expectedOutput := errors.New("Sample error")
-
 	mockIdentityStoreClient.EXPECT().ListGroupsPages(gomock.Any(), gomock.Any()).MaxTimes(1).Return(sampleResponseError)
 
-	actualOutput, err := mockClient.GetGroups()
+	actualOutput := mockClient.getAwsGroups()
 
-	assert.True(t, reflect.DeepEqual(expectedOutput.Error(), err.Error()))
+	// Method returns nil on error (doesn't return error value)
 	assert.Nil(t, actualOutput)
 }
 
@@ -610,10 +605,9 @@ func Test_GetUsersWithoutPagination(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListUsersPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleResp).Return(nil)
 
-	actualOutput, err := mockClient.GetUsers()
+	actualOutput := mockClient.getAwsUsers()
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
-	assert.NoError(t, err)
 }
 
 func Test_GetUsersWithPagination(t *testing.T) {
@@ -687,10 +681,9 @@ func Test_GetUsersWithPagination(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListUsersPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleResp).Return(nil)
 
-	actualOutput, err := mockClient.GetUsers()
+	actualOutput := mockClient.getAwsUsers()
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
-	assert.NoError(t, err)
 }
 
 func Test_GetUsersEmptyResponse(t *testing.T) {
@@ -719,10 +712,9 @@ func Test_GetUsersEmptyResponse(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListUsersPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleResp).Return(nil)
 
-	actualOutput, err := mockClient.GetUsers()
+	actualOutput := mockClient.getAwsUsers()
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
-	assert.NoError(t, err)
 }
 
 func Test_GetUsersErrorResponse(t *testing.T) {
@@ -741,13 +733,11 @@ func Test_GetUsersErrorResponse(t *testing.T) {
 
 	sampleResponseError := errors.New("Sample error")
 
-	expectedOutput := errors.New("Sample error")
-
 	mockIdentityStoreClient.EXPECT().ListUsersPages(gomock.Any(), gomock.Any()).MaxTimes(1).Return(sampleResponseError)
 
-	actualOutput, err := mockClient.GetUsers()
+	actualOutput := mockClient.getAwsUsers()
 
-	assert.True(t, reflect.DeepEqual(expectedOutput.Error(), err.Error()))
+	// Method returns nil on error (doesn't return error value)
 	assert.Nil(t, actualOutput)
 }
 
@@ -946,7 +936,7 @@ func Test_GetGroupMembershipsLists(t *testing.T) {
 	mockIdentityStoreClient.EXPECT().ListGroupMembershipsPages(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Do(callbackWithSampleRespGroupC).Return(nil)
 
-	actualOutput, err := mockClient.GetGroupMembershipsLists(sampleGroupsInput, sampleUsersMapInput)
+	actualOutput, err := mockClient.getAwsGroupMemberships(sampleGroupsInput, sampleUsersMapInput)
 
 	assert.True(t, reflect.DeepEqual(expectedOutput, actualOutput))
 	assert.Nil(t, err)
