@@ -633,9 +633,7 @@ func (s *syncGSuite) getGoogleDirectory() ([]*admin.Group, []*admin.User, map[st
 			// of googleMembers
 			if m.Type == "GROUP" {
                                 log.WithField("id", m.Email).Debug("Nested group adding membership to parent")
-				for _, subGroupMember := range s.getGoogleGroupMembers(m.Email) {
-					groupMembers = append (groupMembers,subGroupMember)
-				}
+				groupMembers = append(groupMembers, s.getGoogleGroupMembers(m.Email)...)
                                 continue
                         }
 
